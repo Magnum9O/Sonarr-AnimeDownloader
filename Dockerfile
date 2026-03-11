@@ -1,23 +1,14 @@
-FROM python:3.13.2-slim
+FROM python:3.13-alpine
 
 LABEL maintainer="MainKronos"
 
-RUN export DEBIAN_FRONTEND=noninteractive; \
-	apt-get update; \
-	apt-get -y upgrade; \
-	apt-get -y install --no-install-recommends; \
-	apt-get -y install curl; \
-	apt-get -y install ffmpeg; \
-	apt-get -y install rtmpdump; \
-	apt-get -y install tzdata; \
-	apt-get -y install build-essential; \
-	apt-get -y install locales && locale-gen it_IT.UTF-8; \
-	apt-get clean; \
-	apt-get autoclean; \
-	rm -rf /var/lib/apt/lists/*
+RUN apk update && \
+	apk upgrade && \
+	apk add --no-cache curl ffmpeg rtmpdump tzdata build-base musl-locales musl-locales-lang && \
+	rm -rf /var/cache/apk/*
 
-RUN groupadd --gid 1000 dockeruser
-RUN useradd --no-log-init -r -m --gid dockeruser --uid 1000 dockeruser 
+RUN addgroup --gid 1000 dockeruser && \
+	adduser --uid 1000 -D -G dockeruser dockeruser
 
 RUN pip3 install --no-cache-dir --upgrade pip
 
@@ -27,24 +18,22 @@ COPY src/requirements.txt /tmp/
 
 RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
-RUN mkdir /downloads
-RUN mkdir /src
+RUN mkdir /downloads && \
+	mkdir /src
 
 WORKDIR /src
 
 COPY src/ /src/
 
-RUN chmod 777 /downloads -R 
-RUN chmod 777 /src -R 
+RUN chmod 777 /downloads -R && \
+	chmod 777 /src -R
 
-RUN gcc /src/start.c -o /start.bin
-RUN rm /src/start.c
-RUN chown root:root /start.bin
-RUN chmod 6751 /start.bin
+RUN gcc /src/start.c -o /start.bin && \
+	rm /src/start.c && \
+	chown root:root /start.bin && \
+	chmod 6751 /start.bin
 
-RUN sed -i -e 's/# it_IT.UTF-8 UTF-8/it_IT.UTF-8 UTF-8/' /etc/locale.gen && \
-	dpkg-reconfigure --frontend=noninteractive locales && \
-	update-locale LANG=it_IT.UTF-8
+ENV LANG=it_IT.UTF-8 LC_ALL=it_IT.UTF-8
 
 ENV FLASK_DEBUG production
 ENV PIP_ROOT_USER_ACTION ignore
