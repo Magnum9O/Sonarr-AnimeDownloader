@@ -4,7 +4,7 @@ LABEL maintainer="MainKronos"
 
 RUN apk update && \
 	apk upgrade && \
-	apk add --no-cache curl ffmpeg rtmpdump tzdata build-base musl-locales musl-locales-lang && \
+	apk add --no-cache curl ffmpeg rtmpdump tzdata build-base musl-locales musl-locales-lang shadow && \
 	rm -rf /var/cache/apk/*
 
 RUN addgroup --gid 1000 dockeruser && \
@@ -16,7 +16,6 @@ RUN pip3 install config --upgrade --no-cache-dir
 
 COPY src/requirements.txt /tmp/
 
-# Fix ARMv7: installa prima dipendenze critiche, poi uvicorn senza standard
 RUN pip3 install --no-cache-dir --only-binary=all \
         httptools uvloop watchfiles uvicorn || \
     pip3 install --no-cache-dir uvicorn && \
