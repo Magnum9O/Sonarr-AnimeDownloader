@@ -1,9 +1,8 @@
-FROM --platform=$BUILDPLATFORM python:3.13-alpine
+FROM python:3.13-alpine
 
 LABEL maintainer="MainKronos"
 
 ARG TARGETPLATFORM
-ARG BUILDPLATFORM
 
 RUN apk update && \
 	apk upgrade && \
