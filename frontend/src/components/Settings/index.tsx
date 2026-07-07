@@ -119,6 +119,20 @@ function SettingCard({ api }: SettingsProps) {
 
                     </fieldset>
 
+                    <fieldset>
+                        <legend>Download Concorrenti</legend>
+                        <div>
+                            <input type="number" name="MaxConcurrentDownloads" id="MaxConcurrentDownloads" placeholder="1" min="1" step="1" value={settings.MaxConcurrentDownloads} onChange={e => {
+                                if (e.target.checkValidity()) {
+                                    setSettings({ ...settings, MaxConcurrentDownloads: e.target.valueAsNumber });
+                                    api.editSettings("MaxConcurrentDownloads", e.target.valueAsNumber)
+                                        .then(res => toast.success(res.message));
+                                }
+                            }} />
+                        </div>
+
+                    </fieldset>
+
                     <button onClick={() => {
                         api.putWekeup()
                             .then(res => toast(res.message));

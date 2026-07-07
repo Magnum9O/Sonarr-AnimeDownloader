@@ -7,7 +7,7 @@ ARG BUILDPLATFORM
 
 RUN apk update && \
 	apk upgrade && \
-	apk add --no-cache curl ffmpeg rtmpdump tzdata build-base musl-locales musl-locales-lang shadow && \
+	apk add --no-cache curl ffmpeg rtmpdump tzdata build-base musl-locales musl-locales-lang && \
 	rm -rf /var/cache/apk/*
 
 RUN addgroup --gid 1000 dockeruser && \
@@ -39,11 +39,6 @@ COPY src/ /src/
 RUN chmod 777 /downloads -R && \
 	chmod 777 /src -R
 
-RUN gcc /src/start.c -o /start.bin && \
-	rm /src/start.c && \
-	chown root:root /start.bin && \
-	chmod 6751 /start.bin
-
 ENV LANG=it_IT.UTF-8 \
     LC_ALL=it_IT.UTF-8 \
     FLASK_DEBUG=production \
@@ -60,4 +55,4 @@ VOLUME [ "/downloads", "/src/script", "/src/database" ]
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl --fail http://localhost:5000 || exit 1
 
-CMD ["/start.bin"]
+CMD ["python3", "-u", "/src/main.py"]

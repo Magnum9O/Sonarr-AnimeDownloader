@@ -1,5 +1,6 @@
 {
 	"LogLevel": "DEBUG",
+	"MaxConcurrentDownloads": 1,
 	"MoveEp": true,
 	"RenameEp": true,
 	"AutoBind": false,

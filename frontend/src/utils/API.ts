@@ -22,7 +22,7 @@ export class API {
         return await res.json();
     }
 
-    async editSettings(setting:"AutoBind"|"LogLevel"|"MoveEp"|"RenameEp"|"ScanDelay"|"TagsMode", value:any): Promise<ResponseMsg>{
+    async editSettings(setting:"AutoBind"|"LogLevel"|"MaxConcurrentDownloads"|"MoveEp"|"RenameEp"|"ScanDelay"|"TagsMode", value:any): Promise<ResponseMsg>{
         const res = await fetch(encodeURI(this.backend + `/settings/${setting}`), {
             method: "PATCH",
             headers: {
@@ -229,6 +229,7 @@ export interface ResponseMsg {
 export interface SettingsOptions { 
     AutoBind: boolean,
     LogLevel: "DEBUG" | "INFO" | "WARNING" | "ERROR" | "CRITICAL", 
+    MaxConcurrentDownloads: number,
     MoveEp: boolean,
     RenameEp: boolean,
     ScanDelay: number,

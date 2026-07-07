@@ -7,6 +7,7 @@ import httpx, re, pathlib, time
 import shutil, tenacity
 import animeworld as aw
 from copy import deepcopy
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import reduce
 from typing import Callable, Any, List
 
@@ -58,78 +59,85 @@ class Downloader:
 
 				episodi:List[aw.Episodio] = reduce(self.flattenEpisodes,[x.getEpisodes() for x in tmp], [])
 
-				for episode in season["episodes"]:
-					self.log.info("")
-					self.log.info(f"⚙️ Verifica se l'episodio S{episode['seasonNumber']}E{episode['episodeNumber']} è disponibile.")
-
-					# Controllo se è in download su Sonarr
-					if self.__isInQueue(episode['id']):
-						self.log.info("🔒 L'episodio è già in download su Sonarr.")
-						continue
-
-					episodio = None
-
-					if season["number"] == 'absolute':
-						# La serie è in formato assoluto
-						res = filter(lambda x: x.number == str(episode['absoluteEpisodeNumber']), episodi)
-						episodio = next(res, None)
-					else:
-						# La serie è normale
-						res = filter(lambda x: x.number == str(episode['episodeNumber']), episodi)
-						episodio = next(res, None)
-					
-					if not episodio:
-						self.log.info("✖️ L'episodio NON è ancora uscito.")
-						continue
-					
-					self.log.info("✔️ L'episodio è disponibile.")
-					self.log.warning(f"⏳ Download episodio S{episode['seasonNumber']}E{episode['episodeNumber']}.")
-
-					title = f'{serie["title"]} - S{episode["seasonNumber"]}E{episode["episodeNumber"]}'
-					file = episodio.download(title, self.folder, hook=self.hook)
-
-					if not file:
-						self.log.warning(f"⚠️ Errore in fase di download.")
-						continue
-
-					file = self.folder.joinpath(file)
-					
-					self.log.info("✔️ Dowload Completato.")
-
-					if self.settings["MoveEp"]:
-						# Se l'episodio deve essere spostato
-					
-						destination = pathlib.Path(serie["path"])
-						self.log.warning(f"⏳ Spostamento episodio episodio S{episode['seasonNumber']}E{episode['episodeNumber']} in {destination}.")
-						if not self.__moveFile(file, destination):
-							self.log.error("✖️ Fallito spostamento episodio.")
-							continue
-
-						self.log.info("✔️ Episodio spostato.")
-						# Dopo aver spostato il file faccio scansionare a Sonarr la serie per trovarlo
-						self.log.info(f"⏳ Aggiornamento serie '{serie['title']}'.")
-						self.sonarr.commandRescanSeries(serie['id'])
-
-						if self.settings["RenameEp"]:
-							# Se l'episodio deve essere rinominato
-							self.log.info(f"⏳ Rinominando l'episodio.")
-
-							# Aspetto 2s che Sonarr abbia finito di ricaricare la serie
-							time.sleep(2)
-
-							# Chiedo a Sonarr di rinominare l'episodio scaricato
-							self.__renameFile(episode['id'], serie['id'])
-
-							self.log.info("✔️ Episodio rinominato.")
-					
-					# Invio una notifica tramite Connections
-					self.log.info('✉️ Inviando il messaggio tramite Connections.')
-					self.connections.send(f"*Episode Downloaded*\n{serie['title']} - {episode['seasonNumber']}x{episode['episodeNumber']} - {episode['title']}")
+				max_workers = self.__getMaxConcurrentDownloads()
+				if max_workers <= 1 or len(season["episodes"]) <= 1:
+					for episode in season["episodes"]:
+						self.__downloadEpisode(serie, season["number"], episodi, episode)
+				else:
+					with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="episode-download") as executor:
+						futures = [
+							executor.submit(self.__downloadEpisode, serie, season["number"], episodi, episode)
+							for episode in season["episodes"]
+						]
+						for future in as_completed(futures):
+							future.result()
 
 			except aw.AnimeNotAvailable as e:
 				self.log.info(f'⚠️ {e}')
 			except (aw.ServerNotSupported, aw.Error404) as e:
 				self.log.warning(cs.yellow(f"🆆🅰🆁🅽🅸🅽🅶: {e}"))
+
+	def __downloadEpisode(self, serie:dict, season_number:str|int, episodi:List[aw.Episodio], episode:dict):
+		self.log.info("")
+		self.log.info(f"⚙️ Verifica se l'episodio S{episode['seasonNumber']}E{episode['episodeNumber']} è disponibile.")
+
+		if self.__isInQueue(episode['id']):
+			self.log.info("🔒 L'episodio è già in download su Sonarr.")
+			return
+
+		episodio = None
+
+		if season_number == 'absolute':
+			res = filter(lambda x: x.number == str(episode['absoluteEpisodeNumber']), episodi)
+			episodio = next(res, None)
+		else:
+			res = filter(lambda x: x.number == str(episode['episodeNumber']), episodi)
+			episodio = next(res, None)
+
+		if not episodio:
+			self.log.info("✖️ L'episodio NON è ancora uscito.")
+			return
+
+		self.log.info("✔️ L'episodio è disponibile.")
+		self.log.warning(f"⏳ Download episodio S{episode['seasonNumber']}E{episode['episodeNumber']}.")
+
+		title = f'{serie["title"]} - S{episode["seasonNumber"]}E{episode["episodeNumber"]}'
+		file = episodio.download(title, self.folder, hook=self.hook)
+
+		if not file:
+			self.log.warning("⚠️ Errore in fase di download.")
+			return
+
+		file = self.folder.joinpath(file)
+
+		self.log.info("✔️ Dowload Completato.")
+
+		if self.settings["MoveEp"]:
+			destination = pathlib.Path(serie["path"])
+			self.log.warning(f"⏳ Spostamento episodio episodio S{episode['seasonNumber']}E{episode['episodeNumber']} in {destination}.")
+			if not self.__moveFile(file, destination):
+				self.log.error("✖️ Fallito spostamento episodio.")
+				return
+
+			self.log.info("✔️ Episodio spostato.")
+			self.log.info(f"⏳ Aggiornamento serie '{serie['title']}'.")
+			self.sonarr.commandRescanSeries(serie['id'])
+
+			if self.settings["RenameEp"]:
+				self.log.info("⏳ Rinominando l'episodio.")
+				time.sleep(2)
+				self.__renameFile(episode['id'], serie['id'])
+				self.log.info("✔️ Episodio rinominato.")
+
+		self.log.info('✉️ Inviando il messaggio tramite Connections.')
+		self.connections.send(f"*Episode Downloaded*\n{serie['title']} - {episode['seasonNumber']}x{episode['episodeNumber']} - {episode['title']}")
+
+	def __getMaxConcurrentDownloads(self) -> int:
+		try:
+			value = int(self.settings["MaxConcurrentDownloads"])
+		except (KeyError, TypeError, ValueError):
+			return 1
+		return max(1, value)
 
 	def flattenEpisodes(self, base:list[aw.Episodio], elem:list[aw.Episodio]) -> list[aw.Episodio]:
 		"""
