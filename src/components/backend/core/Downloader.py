@@ -77,6 +77,54 @@ class Downloader:
 			except (aw.ServerNotSupported, aw.Error404) as e:
 				self.log.warning(cs.yellow(f"🆆🅰🆁🅽🅸🅽🅶: {e}"))
 
+	def downloadMany(self, missing:list[dict]):
+		"""
+		Scarica gli episodi di tutte le serie disponibili usando una coda globale.
+
+		Args:
+		  missing: lista delle serie con episodi mancanti
+		"""
+
+		jobs = []
+
+		for serie in missing:
+			for season in serie["seasons"]:
+				try:
+					self.log.info("─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ")
+					self.log.info("")
+					self.log.info(f"🔎 Ricerca serie '{serie['title']}' stagione {season['number']}.")
+
+					tmp = [aw.Anime(link=x) for x in season["urls"]]
+
+					episodes_str = ", ".join([str(x["episodeNumber"]) for x in season["episodes"]])
+					self.log.info(f"🔎 Ricerca episodio {episodes_str}.")
+
+					episodi:List[aw.Episodio] = reduce(self.flattenEpisodes,[x.getEpisodes() for x in tmp], [])
+
+					for episode in season["episodes"]:
+						jobs.append((serie, season["number"], episodi, episode))
+
+					self.log.info("")
+					self.log.info("─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ")
+					self.log.info("")
+				except aw.AnimeNotAvailable as e:
+					self.log.info(f'⚠️ {e}')
+				except (aw.ServerNotSupported, aw.Error404) as e:
+					self.log.warning(cs.yellow(f"🆆🅰🆁🅽🅸🅽🅶: {e}"))
+
+		if len(jobs) == 0:
+			return
+
+		max_workers = self.__getMaxConcurrentDownloads()
+		if max_workers <= 1 or len(jobs) == 1:
+			for job in jobs:
+				self.__downloadEpisode(*job)
+		else:
+			with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="episode-download") as executor:
+				futures = [executor.submit(self.__downloadEpisode, *job) for job in jobs]
+				for future in as_completed(futures):
+					future.result()
+
 	def __downloadEpisode(self, serie:dict, season_number:str|int, episodi:List[aw.Episodio], episode:dict):
 		self.log.info("")
 		self.log.info(f"⚙️ Verifica se l'episodio S{episode['seasonNumber']}E{episode['episodeNumber']} è disponibile.")
