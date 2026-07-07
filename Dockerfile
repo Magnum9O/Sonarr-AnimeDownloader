@@ -2,8 +2,6 @@ FROM python:3.13-alpine
 
 LABEL maintainer="MainKronos"
 
-ARG TARGETPLATFORM
-
 RUN apk update && \
 	apk upgrade && \
 	apk add --no-cache curl ffmpeg rtmpdump tzdata build-base musl-locales musl-locales-lang && \
@@ -18,15 +16,7 @@ RUN pip3 install config --upgrade --no-cache-dir
 
 COPY src/requirements.txt /tmp/
 
-#armv7 fix
-RUN if [ "$TARGETPLATFORM" = "linux/arm/v7" ]; then \
-        pip3 install --no-cache-dir --only-binary=all \
-            httptools uvloop watchfiles uvicorn || \
-        pip3 install --no-cache-dir uvicorn && \
-        pip3 install --no-cache-dir -r /tmp/requirements.txt; \
-    else \
-        pip3 install --no-cache-dir -r /tmp/requirements.txt; \
-    fi
+RUN pip3 install --no-cache-dir -r /tmp/requirements.txt
 
 RUN mkdir /downloads && \
 	mkdir /src
