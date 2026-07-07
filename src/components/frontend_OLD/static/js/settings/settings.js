@@ -11,6 +11,7 @@ function syncData(){
 
 		document.getElementById('ScanDelay').value = res.data.ScanDelay;
 		document.querySelector("#ScanDelay + label").textContent = res.data.ScanDelay;
+		document.getElementById('MaxConcurrentDownloads').value = res.data.MaxConcurrentDownloads ?? 1;
 
 		for(let elem of document.querySelectorAll('input[name=LogLevel]')){
 			elem.checked = elem.value == res.data.LogLevel;
@@ -38,6 +39,7 @@ function updateSettings(data){
 			LogLevel: data.hasOwnProperty('LogLevel') ? data.LogLevel : null,
 			MoveEp: data.hasOwnProperty('MoveEp') ? data.MoveEp : null,
 			RenameEp: data.hasOwnProperty('RenameEp') ? data.RenameEp : null,
+			MaxConcurrentDownloads: data.hasOwnProperty('MaxConcurrentDownloads') ? data.MaxConcurrentDownloads : null,
 			ScanDelay: data.hasOwnProperty('ScanDelay') ? data.ScanDelay : null,
 			TagsMode: data.hasOwnProperty('TagsMode') ? data.TagsMode : null
 		})
@@ -58,6 +60,9 @@ document.getElementById('MoveEp').addEventListener('change', function(event){
 });
 document.getElementById('AutoBind').addEventListener('change', function(event){
 	updateSettings({AutoBind: this.checked});
+});
+document.getElementById('MaxConcurrentDownloads').addEventListener('change', function(event){
+	updateSettings({MaxConcurrentDownloads: parseInt(this.value)});
 });
 for(let elem of document.querySelectorAll('input[name=LogLevel]')){
 	elem.addEventListener('change', function(event){
